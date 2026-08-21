@@ -2,6 +2,8 @@
 
 一套以 Google Sheet 為資料底座、Google Apps Script 為服務層的校務任務管理系統。安裝時可選擇處室與職務，系統會套用相對應的任務類型、範例、管理台名稱及直向電子紙看板。
 
+目前也內建 `DeskPetGateway.gs`，可讓 [DeskPet](https://github.com/mihozip/DeskPet) 直接讀寫同一份任務資料，不必再建立第二個 Apps Script 專案或手動複製 Spreadsheet ID。
+
 ## 支援的處室與職務
 
 | 處室 | 可選職務 |
@@ -26,10 +28,13 @@
 - 工作紀錄稽核、CSRF 驗證、寫入鎖與 Workspace 網域限制
 - 舊欄位遷移前自動備份
 - 切換處室時保留舊任務與舊任務類型
+- DeskPet API v3：`ping`、`createTask`、`taskDigest`、`updateTask`
+- DeskPet API Token 建立、顯示、重設與契約診斷
 
 ## 檔案
 
 - `Code.gs`：處室 profiles、安裝、遷移、CRUD、權限、稽核、Sheet 與看板 API
+- `DeskPetGateway.gs`：DeskPet JSON API；直接使用同一 Apps Script 專案綁定的 Spreadsheet
 - `Installer.html`：處室／職務安裝精靈
 - `Index.html`：任務管理台
 - `Board.html`：直向電子紙看板
@@ -40,7 +45,7 @@
 
 1. 建立或開啟一份 Google Sheet。
 2. 選擇「擴充功能 → Apps Script」。
-3. 將本專案的 `Code.gs`、`Installer.html`、`Index.html`、`Board.html` 與 `appsscript.json` 加入該 Apps Script 專案。
+3. 將本專案的 `Code.gs`、`DeskPetGateway.gs`、`Installer.html`、`Index.html`、`Board.html` 與 `appsscript.json` 加入該 Apps Script 專案。
 4. 回到試算表重新整理。
 5. 選擇「校務任務系統 → 安裝／選擇處室」。
 6. 選擇學校、處室、職務，以及是否加入範例任務。
@@ -58,7 +63,9 @@
 
 若偵測到舊版欄位，系統會先建立隱藏的 `原始資料備份_yyyyMMdd_HHmmss` 工作表，再轉成標準 19 欄資料契約。
 
-## 部署 Web App
+## 部署管理台 Web App
+
+管理台仍維持給「人」使用的 Workspace 存取邊界。
 
 1. 在 Apps Script 右上角選擇「部署 → 新增部署」。
 2. 類型選擇「網頁應用程式」。
@@ -66,10 +73,112 @@
    - 執行身分：部署者
    - 存取權：學校 Workspace 網域內的使用者
 4. 部署後可使用：
-   - 管理台：`你的部署網址`
-   - 電子紙看板：`你的部署網址?page=board`
+   - 管理台：`你的管理台部署網址`
+   - 電子紙看板：`你的管理台部署網址?page=board`
 
-在 `系統設定` 的 `ALLOWED_DOMAIN` 填入例如 `school.edu.tw`，可再限制登入網域。留空表示程式不額外檢查，但 Web App 部署權限仍是第一層防護。
+在 `系統設定` 的 `ALLOWED_DOMAIN` 填入例如 `school.edu.tw`，可再限制登入網域。
+
+## DeskPet 整合：同專案雙部署
+
+DeskPet 不再需要另外建立一個 Apps Script Gateway 專案。`DeskPetGateway.gs` 與 Dashboard 共用同一個 Apps Script 專案、同一份 Spreadsheet 與同一套 19 欄資料契約。
+
+架構：
+
+```text
+瀏覽器使用者
+   │ Workspace 登入
+   ▼
+管理台 Deployment（網域限定）
+   │
+   ├──────────────┐
+   ▼              ▼
+同一份 Google Sheet   DeskPet API Deployment（直接 POST）
+                      ▲
+                      │ HTTPS POST + DESKPET_API_TOKEN
+                      │
+                   DeskPet
+```
+
+### 1. 先設定管理台網域
+
+**在建立「任何人」可存取的 DeskPet API Deployment 之前，務必先在 `系統設定` 設定 `ALLOWED_DOMAIN`。**
+
+例如：
+
+```text
+ALLOWED_DOMAIN = school.edu.tw
+```
+
+原因是同一個 Apps Script 專案仍包含管理台 `doGet()`；公開 API deployment 只應提供 DeskPet 使用，管理台資料操作仍必須由 `assertAuthorized_()` 擋住匿名使用者。
+
+### 2. 建立 Token
+
+在 Apps Script 編輯器的函式選單執行：
+
+```javascript
+setupDeskPetGateway()
+```
+
+它會：
+
+- 建立或沿用 `DESKPET_API_TOKEN`
+- 直接使用本專案綁定的 Spreadsheet，不再需要 `DESKPET_SPREADSHEET_ID`
+- 驗證 `任務清單`、`工作紀錄`、`系統設定`、`選項清單`
+- 驗證 19 欄任務契約與 7 欄工作紀錄契約
+- 回傳目前學校、處室、職務與動態選項
+
+需要查看 Token 時，可執行：
+
+```javascript
+showDeskPetApiToken()
+```
+
+需要重新產生 Token 時：
+
+```javascript
+resetDeskPetApiToken()
+```
+
+需要只看狀態、不顯示秘密值時：
+
+```javascript
+getDeskPetGatewayStatus()
+```
+
+### 3. 建立第二個 Web App Deployment
+
+在**同一個 Apps Script 專案**再新增一個 Web App deployment，專門給 DeskPet：
+
+- 執行身分：部署者
+- 存取權：可讓 DeskPet 不經 Google 登入直接 POST 的模式（通常為「任何人」）
+
+這個 deployment 的 `/exec` URL 才是要貼到 DeskPet 的「校務任務系統網址」。
+
+**不要把管理台 deployment URL 貼到 DeskPet。** 管理台 deployment 仍要求 Workspace 登入，DeskPet 的 `URLSession` 會收到登入頁／HTML 而不是 JSON。
+
+### 4. DeskPet 設定
+
+DeskPet 中填入：
+
+```text
+網址  = DeskPet API Deployment 的 /exec URL
+Token = DESKPET_API_TOKEN
+```
+
+按「測試連線」成功後，DeskPet 會取得目前的學校、處室、職務、任務類型、狀態與優先級。
+
+切換 Dashboard 處室後，不需要更換 Token 或重新指定 Spreadsheet；回 DeskPet 再按一次「測試連線」即可刷新 metadata。
+
+## DeskPet API
+
+| Action | 行為 |
+| --- | --- |
+| `ping` | 驗證 Token 與 Dashboard 契約，回傳 integration metadata |
+| `createTask` | 以 `clientTaskId` 冪等建立任務 |
+| `taskDigest` | 回傳未封存任務摘要、逾期／今日／高優先／等待旗標 |
+| `updateTask` | 更新狀態、期限、下一步行動、等待對象與最近進度 |
+
+API 不接受 Dashboard 的 CSRF Token；機器端授權只使用 `DESKPET_API_TOKEN`。所有 DeskPet 寫入仍會追加到 `工作紀錄`。
 
 ## 切換處室
 
@@ -80,6 +189,7 @@
 - 新增任務改用新處室類型
 - 舊資料曾使用的類型仍保留，避免既有任務無法編輯
 - 管理台、看板、預設負責人與系統名稱改成新處室／職務
+- DeskPet Gateway 不需修改；重新測試連線即可同步新 metadata
 
 ## 看板顯示邏輯
 
