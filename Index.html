@@ -332,6 +332,9 @@
     };
 
     const $ = id => document.getElementById(id);
+    const CSRF_EXPIRED_TEXT = '操作憑證已失效';
+    const CSRF_PROACTIVE_RENEW_MS = 5 * 60 * 60 * 1000;
+    let csrfRenewalPromise = null;
 
     function escapeHtml(value) {
       return String(value == null ? '' : value)
@@ -363,6 +366,33 @@
           .withFailureHandler(error => reject(new Error(error && error.message ? error.message : String(error))));
         runner[functionName](...args);
       });
+    }
+
+    function isCsrfExpiredError(error) {
+      return Boolean(error && String(error.message || error).includes(CSRF_EXPIRED_TEXT));
+    }
+
+    function renewCsrfToken() {
+      if (csrfRenewalPromise) return csrfRenewalPromise;
+      csrfRenewalPromise = serverCall('refreshCsrfToken')
+        .then(result => {
+          const token = result && result.csrfToken ? String(result.csrfToken) : '';
+          if (!token) throw new Error('無法重新取得操作憑證。');
+          state.csrfToken = token;
+          return token;
+        })
+        .finally(() => { csrfRenewalPromise = null; });
+      return csrfRenewalPromise;
+    }
+
+    async function withCsrfRetry(operation) {
+      try {
+        return await operation(state.csrfToken);
+      } catch (error) {
+        if (!isCsrfExpiredError(error)) throw error;
+        const token = await renewCsrfToken();
+        return operation(token);
+      }
     }
 
     function addOptions(selectId, values, includeBlank, blankText) {
@@ -543,10 +573,10 @@
       $('taskModal').classList.remove('open');
     }
 
-    function formToPayload() {
+    function formToPayload(csrfToken) {
       const formData = new FormData($('taskForm'));
       const payload = Object.fromEntries(formData.entries());
-      payload.csrfToken = state.csrfToken;
+      payload.csrfToken = csrfToken || state.csrfToken;
       payload.sortOrder = Number(payload.sortOrder) || 100;
       return payload;
     }
@@ -556,7 +586,7 @@
       setLoading(true, '正在儲存任務……');
       $('saveButton').disabled = true;
       try {
-        const result = await serverCall('saveTask', formToPayload());
+        const result = await withCsrfRetry(token => serverCall('saveTask', formToPayload(token)));
         state.tasks = result.tasks || [];
         state.filteredTasks = [...state.tasks];
         renderSummary(result.summary || {});
@@ -574,7 +604,7 @@
     async function quickStatus(taskId, status) {
       setLoading(true, '正在更新任務狀態……');
       try {
-        const result = await serverCall('updateTaskStatus', taskId, status, state.csrfToken);
+        const result = await withCsrfRetry(token => serverCall('updateTaskStatus', taskId, status, token));
         state.tasks = result.tasks || [];
         state.filteredTasks = [...state.tasks];
         renderSummary(result.summary || {});
@@ -592,7 +622,7 @@
       if (!taskId || !window.confirm('確定要封存這項任務嗎？資料仍會保留在 Sheet 與工作紀錄中。')) return;
       setLoading(true, '正在封存任務……');
       try {
-        const result = await serverCall('archiveTask', taskId, state.csrfToken);
+        const result = await withCsrfRetry(token => serverCall('archiveTask', taskId, token));
         state.tasks = result.tasks || [];
         state.filteredTasks = [...state.tasks];
         renderSummary(result.summary || {});
@@ -609,7 +639,11 @@
     async function refreshData() {
       setLoading(true, '正在重新整理任務……');
       try {
-        const result = await serverCall('getTasks');
+        const [result, auth] = await Promise.all([
+          serverCall('getTasks'),
+          serverCall('refreshCsrfToken'),
+        ]);
+        if (auth && auth.csrfToken) state.csrfToken = String(auth.csrfToken);
         state.tasks = result.tasks || [];
         state.filteredTasks = [...state.tasks];
         renderSummary(result.summary || {});
@@ -677,6 +711,9 @@
     });
 
     initialize();
+    window.setInterval(() => {
+      renewCsrfToken().catch(() => {});
+    }, CSRF_PROACTIVE_RENEW_MS);
   </script>
 </body>
 </html>
