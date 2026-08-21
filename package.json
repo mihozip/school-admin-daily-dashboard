@@ -4,7 +4,7 @@
   "private": true,
   "description": "可依處室安裝的 Google Apps Script 校務行政任務管理與看板系統",
   "scripts": {
-    "test": "node tests/profile_config.test.js"
+    "test": "node tests/profile_config.test.js && node tests/deskpet_gateway.test.js"
   },
   "license": "MIT",
   "engines": {
