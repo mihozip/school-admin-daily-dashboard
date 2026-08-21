@@ -361,6 +361,15 @@ function getBootstrapData() {
   };
 }
 
+/** 重新取得管理台操作憑證；供前端在長時間開啟後自動續期。 */
+function refreshCsrfToken() {
+  assertAuthorized_();
+  return {
+    csrfToken: issueCsrfToken_(),
+    serverTime: formatDateTime_(new Date()),
+  };
+}
+
 /** 重新取得任務；前端篩選主要在瀏覽器完成。 */
 function getTasks() {
   assertAuthorized_();
@@ -1225,21 +1234,34 @@ function assertAuthorized_() {
   return user;
 }
 
+function csrfCacheKey_(token) {
+  return `csrfToken:${String(token || "").trim()}`;
+}
+
 function issueCsrfToken_() {
   const token = Utilities.getUuid();
   CacheService.getUserCache().put(
-    "csrfToken",
-    token,
+    csrfCacheKey_(token),
+    "1",
     APP_CONFIG.CSRF_TTL_SECONDS,
   );
   return token;
 }
 
 function verifyCsrfToken_(token) {
-  const expected = CacheService.getUserCache().get("csrfToken");
-  if (!token || !expected || token !== expected) {
+  const actual = String(token || "").trim();
+  if (!actual) {
     throw new Error("操作憑證已失效，請重新整理管理頁。");
   }
+
+  const cache = CacheService.getUserCache();
+  const key = csrfCacheKey_(actual);
+  if (cache.get(key) !== "1") {
+    throw new Error("操作憑證已失效，請重新整理管理頁。");
+  }
+
+  // 活躍中的管理頁採滑動期限；閒置超過 6 小時仍會過期，由前端自動換證。
+  cache.put(key, "1", APP_CONFIG.CSRF_TTL_SECONDS);
 }
 
 function issueInstallToken_() {
