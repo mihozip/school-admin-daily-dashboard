@@ -1,6 +1,6 @@
 {
   "name": "school-administration-gas-task-board",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "private": true,
   "description": "可依處室安裝的 Google Apps Script 校務行政任務管理與看板系統",
   "scripts": {
