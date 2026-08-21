@@ -6,7 +6,20 @@ const vm = require("node:vm");
 const projectRoot = path.resolve(__dirname, "..");
 const codePath = path.join(projectRoot, "Code.gs");
 const source = fs.readFileSync(codePath, "utf8");
-const context = vm.createContext({});
+let uuidCounter = 0;
+const userCache = new Map();
+const context = vm.createContext({
+  Utilities: {
+    getUuid: () => `test-uuid-${++uuidCounter}`,
+  },
+  CacheService: {
+    getUserCache: () => ({
+      put: (key, value) => userCache.set(key, value),
+      get: (key) => (userCache.has(key) ? userCache.get(key) : null),
+      remove: (key) => userCache.delete(key),
+    }),
+  },
+});
 
 vm.runInContext(
   `${source}
@@ -17,7 +30,10 @@ globalThis.__exports = {
   OFFICE_PROFILES,
   getOfficeProfile_,
   getOfficeProfileCatalog_,
-  getOptionLists_
+  getOptionLists_,
+  csrfCacheKey_,
+  issueCsrfToken_,
+  verifyCsrfToken_
 };`,
   context,
   { filename: "Code.gs" },
@@ -31,6 +47,9 @@ const {
   getOfficeProfile_,
   getOfficeProfileCatalog_,
   getOptionLists_,
+  csrfCacheKey_,
+  issueCsrfToken_,
+  verifyCsrfToken_,
 } = context.__exports;
 
 assert.equal(TASK_HEADERS.length, 19, "任務資料契約必須維持 19 欄");
@@ -91,9 +110,29 @@ for (const htmlName of ["Installer.html", "Index.html", "Board.html"]) {
   scripts.forEach((script) => new Function(script));
 }
 
+const firstCsrfToken = issueCsrfToken_();
+const secondCsrfToken = issueCsrfToken_();
+assert.notEqual(firstCsrfToken, secondCsrfToken, "不同管理頁應取得不同 CSRF Token");
+assert.equal(userCache.get(csrfCacheKey_(firstCsrfToken)), "1");
+assert.equal(userCache.get(csrfCacheKey_(secondCsrfToken)), "1");
+assert.doesNotThrow(() => verifyCsrfToken_(firstCsrfToken), "開啟第二分頁後第一分頁憑證仍應有效");
+assert.doesNotThrow(() => verifyCsrfToken_(secondCsrfToken), "第二分頁憑證應有效");
+userCache.delete(csrfCacheKey_(firstCsrfToken));
+assert.throws(() => verifyCsrfToken_(firstCsrfToken), /操作憑證已失效/);
+assert.doesNotThrow(() => verifyCsrfToken_(secondCsrfToken), "單一憑證過期不應影響其他管理頁");
+
+const indexSource = fs.readFileSync(path.join(projectRoot, "Index.html"), "utf8");
+assert.match(indexSource, /function renewCsrfToken\(\)/, "管理頁應可重新取得 CSRF Token");
+assert.match(indexSource, /function withCsrfRetry\(operation\)/, "寫入操作應在憑證過期時自動重試一次");
+assert.match(indexSource, /serverCall\('refreshCsrfToken'\)/, "前端應呼叫後端換證端點");
+assert.match(indexSource, /CSRF_PROACTIVE_RENEW_MS/, "長時間開啟的管理頁應主動換證");
+
 assert.doesNotMatch(source, /\b1[A-Za-z0-9_-]{30,}\b/, "公開版本不得含固定 Google 資源 ID");
 assert.match(source, /BOUND_SPREADSHEET_ID/, "安裝後應以 Script Properties 定位試算表");
 assert.match(source, /verifyCsrfToken_/, "寫入流程必須保留 CSRF 驗證");
+assert.match(source, /function refreshCsrfToken\(\)/, "後端必須提供安全換證端點");
+assert.match(source, /csrfToken:\$\{String\(token/, "每顆 CSRF Token 應使用獨立 cache key");
+assert.doesNotMatch(source, /getUserCache\(\)\.put\(\s*"csrfToken"/, "不得用單一固定 cache key 讓多分頁互相覆寫");
 assert.match(source, /verifyInstallToken_\(installToken\)/, "安裝寫入必須驗證安裝憑證");
 assert.match(source, /assertSpreadsheetUiContext_\(\)/, "安裝端點必須限制在試算表 UI");
 assert.match(source, /LockService/, "共享寫入必須保留鎖");
