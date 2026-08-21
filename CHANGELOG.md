@@ -1,5 +1,36 @@
 # Changelog
 
+## v1.1.0 — 2026-08-21
+
+### DeskPet 改為同專案 Gateway 整合
+
+本版新增 `DeskPetGateway.gs`，讓 DeskPet 與校務任務系統共用同一個 Apps Script 專案與同一份 Google Sheet，不再需要另外建立 Gateway Apps Script 專案或手動複製 `DESKPET_SPREADSHEET_ID`。
+
+### 新增內容
+
+- 新增 `DeskPetGateway.gs`。
+- 支援 DeskPet API v3：`ping`、`createTask`、`taskDigest`、`updateTask`。
+- 直接共用 Dashboard 的 19 欄任務契約、7 欄工作紀錄與既有 helper。
+- 新增 `setupDeskPetGateway()`、`showDeskPetApiToken()`、`resetDeskPetApiToken()`、`getDeskPetGatewayStatus()`。
+- DeskPet 新增與更新任務時會同步追加 `工作紀錄`。
+- `clientTaskId` 轉為穩定 DeskPet 任務 ID，避免重複建立。
+- 新增 Gateway contract 測試並納入 `npm test`。
+
+### 部署方式
+
+同一 Apps Script 專案建立兩個不同用途的 Web App deployment：
+
+1. **Dashboard deployment**：維持 Workspace／網域登入。
+2. **DeskPet API deployment**：允許 DeskPet 直接 POST，並使用 `DESKPET_API_TOKEN` 驗證。
+
+在建立可公開 POST 的 API deployment 前，請先於 `系統設定` 設定 `ALLOWED_DOMAIN`，避免匿名使用者從公開 deployment 存取管理台資料。
+
+DeskPet 設定中必須填入 **DeskPet API deployment 的 `/exec` URL**，不是 Dashboard 管理台網址。
+
+### 舊版相容
+
+DeskPet repository 內的獨立 `GAS/DeskPet_GAS_API_Gateway_v3.js` 仍可作為 Workspace 政策限制下的備援模式。
+
 ## v1.0.1 — 2026-08-21
 
 ### 修正管理頁操作憑證失效問題
@@ -27,7 +58,7 @@
 
 ### DeskPet / 白帥帥
 
-本次更新不影響 DeskPet 的獨立 API Gateway，也不會變更 `DESKPET_API_TOKEN`，既有 DeskPet 串接不需要重新設定 Token 或 Gateway 網址。
+v1.0.1 本身不變更既有獨立 Gateway；若升級到 v1.1.0，可改採同專案 `DeskPetGateway.gs` 整合。
 
 ### Apps Script 部署
 
