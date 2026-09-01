@@ -60,11 +60,52 @@
     .summary-label { color: var(--muted); font-size: 13px; font-weight: 800; white-space: nowrap; }
     .summary-value { margin-top: 7px; font-size: 31px; line-height: 1; font-weight: 900; }
 
-    .workspace {
-      display: grid; grid-template-columns: 310px minmax(0, 1fr); gap: 18px; align-items: start;
-    }
     .panel {
       border: 1px solid var(--line); border-radius: 20px; background: var(--surface); box-shadow: var(--shadow);
+    }
+
+    .radar-panel { margin: 0 0 18px; overflow: hidden; }
+    .radar-header {
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+      padding: 18px 20px; border-bottom: 1px solid var(--line);
+      background: linear-gradient(135deg, #fffaf0 0%, #ffffff 62%);
+    }
+    .radar-heading { display: flex; align-items: center; gap: 12px; min-width: 0; }
+    .radar-icon {
+      display: grid; place-items: center; flex: 0 0 42px; width: 42px; height: 42px;
+      border-radius: 50%; background: #fff1cf; color: #795000; font-size: 22px;
+    }
+    .radar-title { margin: 0; font-size: 20px; }
+    .radar-subtitle { margin-top: 3px; color: var(--muted); font-size: 13px; line-height: 1.45; }
+    .radar-summary {
+      display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+      border-bottom: 1px solid var(--line); background: #fbfcfd;
+    }
+    .radar-metric { padding: 14px 18px; border-right: 1px solid var(--line); }
+    .radar-metric:last-child { border-right: 0; }
+    .radar-metric-label { color: var(--muted); font-size: 12px; font-weight: 800; }
+    .radar-metric-value { margin-top: 5px; font-size: 23px; line-height: 1; font-weight: 900; }
+    .radar-list { display: grid; gap: 10px; padding: 14px; }
+    .radar-item {
+      display: grid; grid-template-columns: 88px minmax(0, 1fr) auto; gap: 14px; align-items: center;
+      padding: 14px; border: 1px solid #e5ebf0; border-left-width: 5px; border-radius: 14px;
+      background: white;
+    }
+    .radar-item-attention { border-left-color: var(--danger); background: #fffafa; }
+    .radar-item-due { border-left-color: #d48600; background: #fffdf7; }
+    .radar-item-watch { border-left-color: #5f829f; }
+    .radar-signal { text-align: center; }
+    .radar-days { font-size: 27px; line-height: 1; font-weight: 950; }
+    .radar-days-label { margin-top: 4px; color: var(--muted); font-size: 11px; font-weight: 800; }
+    .radar-item-title { font-weight: 900; line-height: 1.4; }
+    .radar-item-meta { margin-top: 5px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .radar-reason { margin-top: 6px; color: #654600; font-size: 13px; font-weight: 800; line-height: 1.45; }
+    .radar-item-actions { display: flex; gap: 7px; flex-wrap: wrap; justify-content: flex-end; }
+    .radar-empty { padding: 24px 20px; color: var(--muted); text-align: center; font-weight: 750; }
+    .radar-more { padding: 0 18px 16px; color: var(--muted); font-size: 12px; text-align: right; }
+
+    .workspace {
+      display: grid; grid-template-columns: 310px minmax(0, 1fr); gap: 18px; align-items: start;
     }
     .filter-panel { position: sticky; top: 16px; padding: 20px; }
     .panel-title { margin: 0 0 17px; font-size: 19px; }
@@ -147,6 +188,8 @@
 
     @media (max-width: 1100px) {
       .summary-grid { grid-template-columns: repeat(3, 1fr); }
+      .radar-item { grid-template-columns: 72px minmax(0, 1fr); }
+      .radar-item-actions { grid-column: 2; justify-content: flex-start; }
       .workspace { grid-template-columns: 1fr; }
       .filter-panel { position: static; }
       .filter-panel .filter-fields { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
@@ -160,6 +203,13 @@
       .top-actions { width: 100%; justify-content: stretch; }
       .top-actions .button { flex: 1; }
       .summary-grid { grid-template-columns: repeat(2, 1fr); }
+      .radar-header { align-items: flex-start; flex-direction: column; }
+      .radar-summary { grid-template-columns: repeat(2, 1fr); }
+      .radar-metric:nth-child(2) { border-right: 0; }
+      .radar-metric:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
+      .radar-item { grid-template-columns: 1fr; }
+      .radar-signal { text-align: left; display: flex; align-items: baseline; gap: 6px; }
+      .radar-item-actions { grid-column: auto; justify-content: flex-start; }
       .filter-panel .filter-fields { grid-template-columns: 1fr; }
       .form-grid { grid-template-columns: 1fr; padding: 16px; }
       .field-wide { grid-column: auto; }
@@ -191,6 +241,27 @@
       <article class="summary-card"><div class="summary-label">今日到期</div><div class="summary-value" id="sumDueToday">0</div></article>
       <article class="summary-card"><div class="summary-label">已逾期</div><div class="summary-value" id="sumOverdue">0</div></article>
       <article class="summary-card"><div class="summary-label">已完成</div><div class="summary-value" id="sumCompleted">0</div></article>
+    </section>
+
+    <section class="panel radar-panel" aria-label="Waiting Radar">
+      <div class="radar-header">
+        <div class="radar-heading">
+          <div class="radar-icon" aria-hidden="true">◉</div>
+          <div>
+            <h2 class="radar-title">Waiting Radar</h2>
+            <div class="radar-subtitle">把「等待他人」從靜態狀態改成可追蹤的行政依賴：看卡多久、該追誰、何時再追。</div>
+          </div>
+        </div>
+        <button class="button button-light" type="button" id="waitingOnlyButton">只看等待任務</button>
+      </div>
+      <div class="radar-summary">
+        <div class="radar-metric"><div class="radar-metric-label">等待中</div><div class="radar-metric-value" id="radarWaiting">0</div></div>
+        <div class="radar-metric"><div class="radar-metric-label">需要介入</div><div class="radar-metric-value" id="radarAttention">0</div></div>
+        <div class="radar-metric"><div class="radar-metric-label">今日應追</div><div class="radar-metric-value" id="radarDueToday">0</div></div>
+        <div class="radar-metric"><div class="radar-metric-label">最長等待</div><div class="radar-metric-value"><span id="radarLongest">0</span><span style="font-size:12px;margin-left:4px;color:var(--muted)">天</span></div></div>
+      </div>
+      <div class="radar-list" id="waitingRadarList"><div class="radar-empty">正在分析等待中的任務……</div></div>
+      <div class="radar-more" id="waitingRadarMore" hidden>僅顯示最需要注意的等待項目；可用「只看等待任務」查看全部。</div>
     </section>
 
     <section class="workspace">
@@ -329,6 +400,7 @@
       office: {},
       csrfToken: '',
       user: {},
+      waitingRadar: { summary: {}, items: [] },
     };
 
     const $ = id => document.getElementById(id);
@@ -422,6 +494,77 @@
       $('sumDueToday').textContent = summary.dueToday || 0;
       $('sumOverdue').textContent = summary.overdue || 0;
       $('sumCompleted').textContent = summary.completed || 0;
+    }
+
+    function renderWaitingRadar(radar) {
+      const data = radar || { summary: {}, items: [] };
+      const summary = data.summary || {};
+      const items = data.items || [];
+      state.waitingRadar = data;
+
+      $('radarWaiting').textContent = summary.waiting || 0;
+      $('radarAttention').textContent = summary.needsAttention || 0;
+      $('radarDueToday').textContent = summary.dueToday || 0;
+      $('radarLongest').textContent = summary.longestWaitDays || 0;
+      $('waitingRadarMore').hidden = !data.hasMore;
+
+      if (!items.length) {
+        $('waitingRadarList').innerHTML = '<div class="radar-empty">目前沒有「等待他人」或「待確認」的任務。Waiting Radar 是空的。</div>';
+        return;
+      }
+
+      $('waitingRadarList').innerHTML = items.map(item => {
+        const levelLabel = item.level === 'attention' ? '需介入' : item.level === 'due' ? '今日追蹤' : '觀察中';
+        const waitingFor = item.waitingFor || '未填等待對象';
+        const followUpText = item.lastFollowUpAt
+          ? `已追蹤 ${Number(item.followUpCount) || 0} 次`
+          : '尚未追蹤';
+        const nextAction = item.nextAction || item.progress || '尚未填寫下一步行動';
+        return `
+          <article class="radar-item radar-item-${escapeHtml(item.level || 'watch')}">
+            <div class="radar-signal">
+              <div class="radar-days">${escapeHtml(item.daysWaiting || 0)}</div>
+              <div class="radar-days-label">等待天數</div>
+            </div>
+            <div>
+              <div class="radar-item-title"><span class="badge">${escapeHtml(levelLabel)}</span> ${escapeHtml(item.name)}</div>
+              <div class="radar-item-meta">等待：${escapeHtml(waitingFor)}｜下次追蹤：${escapeHtml(item.nextFollowUpDate || '—')}｜${escapeHtml(followUpText)}</div>
+              <div class="radar-reason">${escapeHtml(item.reason || '')}</div>
+              <div class="radar-item-meta">下一步：${escapeHtml(nextAction)}</div>
+            </div>
+            <div class="radar-item-actions">
+              <button class="mini-button" type="button" data-radar-action="followup" data-id="${escapeHtml(item.taskId)}">已追蹤＋3天</button>
+              <button class="mini-button" type="button" data-radar-action="edit" data-id="${escapeHtml(item.taskId)}">編輯任務</button>
+            </div>
+          </article>
+        `;
+      }).join('');
+    }
+
+    async function refreshWaitingRadar() {
+      const radar = await serverCall('getWaitingRadar');
+      renderWaitingRadar(radar);
+      return radar;
+    }
+
+    async function markWaitingRadarFollowUp(taskId) {
+      setLoading(true, '正在記錄 Waiting Radar 追蹤……');
+      try {
+        const result = await withCsrfRetry(token => serverCall('markWaitingFollowUp', taskId, 3, token));
+        renderWaitingRadar(result.radar || {});
+        showToast(result.message || '已記錄追蹤。');
+      } catch (error) {
+        showToast(error.message, true);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    function showWaitingTasks() {
+      ['keywordFilter', 'statusFilter', 'categoryFilter', 'priorityFilter', 'dueFilter'].forEach(id => $(id).value = '');
+      state.filteredTasks = state.tasks.filter(task => ['等待他人', '待確認'].includes(task.status));
+      renderTasks();
+      $('taskTableWrap').scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
     function parseDateOnly(value) {
@@ -591,6 +734,7 @@
         state.filteredTasks = [...state.tasks];
         renderSummary(result.summary || {});
         renderTasks();
+        await refreshWaitingRadar();
         closeTaskModal();
         showToast('任務已儲存。');
       } catch (error) {
@@ -609,6 +753,7 @@
         state.filteredTasks = [...state.tasks];
         renderSummary(result.summary || {});
         applyFilters();
+        await refreshWaitingRadar();
         showToast(status === '已完成' ? '任務已完成。' : '任務已重新開啟。');
       } catch (error) {
         showToast(error.message, true);
@@ -627,6 +772,7 @@
         state.filteredTasks = [...state.tasks];
         renderSummary(result.summary || {});
         renderTasks();
+        await refreshWaitingRadar();
         closeTaskModal();
         showToast('任務已封存。');
       } catch (error) {
@@ -639,14 +785,16 @@
     async function refreshData() {
       setLoading(true, '正在重新整理任務……');
       try {
-        const [result, auth] = await Promise.all([
+        const [result, auth, radar] = await Promise.all([
           serverCall('getTasks'),
           serverCall('refreshCsrfToken'),
+          serverCall('getWaitingRadar'),
         ]);
         if (auth && auth.csrfToken) state.csrfToken = String(auth.csrfToken);
         state.tasks = result.tasks || [];
         state.filteredTasks = [...state.tasks];
         renderSummary(result.summary || {});
+        renderWaitingRadar(radar || {});
         applyFilters();
         showToast(`已更新｜${result.serverTime || ''}`);
       } catch (error) {
@@ -657,9 +805,12 @@
     }
 
     async function initialize() {
-      setLoading(true, '正在讀取 Workspace 與任務資料……');
+      setLoading(true, '正在讀取 Workspace、任務與 Waiting Radar……');
       try {
-        const data = await serverCall('getBootstrapData');
+        const [data, radar] = await Promise.all([
+          serverCall('getBootstrapData'),
+          serverCall('getWaitingRadar'),
+        ]);
         state.tasks = data.tasks || [];
         state.filteredTasks = [...state.tasks];
         state.options = data.options || {};
@@ -678,9 +829,11 @@
 
         initializeOptions();
         renderSummary(data.summary || {});
+        renderWaitingRadar(radar || {});
         renderTasks();
       } catch (error) {
         $('taskTableWrap').innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`;
+        $('waitingRadarList').innerHTML = `<div class="radar-empty">${escapeHtml(error.message)}</div>`;
         showToast(error.message, true);
       } finally {
         setLoading(false);
@@ -696,7 +849,16 @@
     $('applyFilterButton').addEventListener('click', applyFilters);
     $('resetFilterButton').addEventListener('click', resetFilters);
     $('refreshButton').addEventListener('click', refreshData);
+    $('waitingOnlyButton').addEventListener('click', showWaitingTasks);
     $('keywordFilter').addEventListener('input', () => window.setTimeout(applyFilters, 0));
+
+    $('waitingRadarList').addEventListener('click', event => {
+      const button = event.target.closest('[data-radar-action]');
+      if (!button) return;
+      const task = state.tasks.find(item => item.taskId === button.dataset.id);
+      if (button.dataset.radarAction === 'edit' && task) openTaskModal(task);
+      if (button.dataset.radarAction === 'followup') markWaitingRadarFollowUp(button.dataset.id);
+    });
 
     $('taskTableWrap').addEventListener('click', event => {
       const button = event.target.closest('[data-action]');
